@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-triage.py — Identify which of the 9 planted bugs a crash set found.
+triage.py — Identify which of the 6 planted bugs a crash set found.
 Run after fuzzing to produce a bug-coverage table.
 
 Usage:
@@ -27,23 +27,25 @@ def classify(data):
         return None
     cmd = data[1]
     length = struct.unpack_from("<H", data, 2)[0]
+    if len(data) < 4 + length: 
+        return None
     payload = data[4:4+length]
 
     if cmd == 0x01 and length > 64:
         return 1
-    if cmd == 0x02 and len(payload) >= 8 and payload[:8] == bytes([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE,0xBA,0xBE]):
+    if cmd == 0x02 and length >= 9 and length > 24 and payload[:8] == bytes([0xDE,0xAD,0xBE,0xEF,0xCA,0xFE,0xBA,0xBE]):
         return 2
-    if cmd == 0x03 and len(payload) >= 1 and payload[0] > length:
+    if cmd == 0x03 and length >= 2 and payload[0] > length:
         return 3
     if cmd == 0x04 and len(payload) >= 1 and payload[0] == 0x5E:
         return 4
-    if cmd == 0x05 and len(payload) >= 4 and payload[0] == ord('F') and \
+    if cmd == 0x05 and length >= 5 and payload[0] == ord('F') and \
        (payload[1] + payload[2]) & 0xFF == 0xFF and payload[3] == 0x42:
         return 5
-    if cmd == 0x06 and len(payload) >= 1 and (payload[0] & 0x90) == 0x90:
+    if cmd == 0x06 and length >= 3 and (payload[0] & 0x90) == 0x90:
         return 6
-    if cmd == 0x07 and len(payload) >= 4 and \
-       (payload[0] ^ payload[1]) == 0xAA and (payload[2] ^ payload[3]) == 0x55:
+    if cmd == 0x07 and length > 12 and \
+        (payload[0] ^ payload[1]) == 0xAA and (payload[2] ^ payload[3]) == 0x55:
         return 7
     if cmd == 0x08 and len(payload) >= 4 and \
        (payload[0] & payload[1]) == 0x3C and \

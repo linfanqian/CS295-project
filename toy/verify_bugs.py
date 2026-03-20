@@ -8,7 +8,7 @@ import struct, subprocess, sys, os
 BINARY = "./toy_verify"
 
 subprocess.run(
-    ["clang", "-fsanitize=address", "-g", "-O0", "-o", BINARY, "toy.c"],
+    ["clang", "-fsanitize=address", "-g", "-O0", "-o", BINARY, "src/toy_parser.c"],
     check=True
 )
 print(f"Built {BINARY}\n")

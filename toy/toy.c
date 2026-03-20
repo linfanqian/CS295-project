@@ -22,13 +22,14 @@
  *
  *   --- SymCC-targeted additions (XOR/AND constraints) ---
  *     Bug 7 (cmd=0x07) — Heap overflow behind XOR constraints        [needs SymCC]
- *     Bug 8 (cmd=0x08) — Null deref behind bitwise AND constraint    [needs SymCC]
+ *     Bug 8 (cmd=0x08) — OOB read behind bitwise AND + arithmetic constraint [needs SymCC]
  *     Bug 9 (cmd=0x09) — Double free via XOR state transition        [needs SymCC]
  *
  * Difficulty design:
- *   Bugs 1, 4     — shallow, AFL finds by simple mutation
- *   Bugs 2, 5     — behind multi-byte magic checks, SymCC solves constraints
- *   Bugs 3, 6     — boundary/bit-pattern conditions, AFL may find slowly
+ *   Bugs 1, 4     — shallow, AFL finds by simple mutation             [LOW]
+ *   Bugs 3, 6     — boundary/bit-pattern conditions, AFL finds slowly [MEDIUM]
+ *   Bugs 2, 5     — multi-byte magic / arithmetic sum constraints     [HIGH, needs SymCC]
+ *   Bugs 7, 8, 9  — XOR/AND cross-byte constraints, AFL cannot solve  [VERY HIGH, needs SymCC]
  */
 
 #include <stdio.h>
@@ -74,13 +75,10 @@ static void handle_cmd2(const uint8_t *payload, uint16_t length)
         payload[4] == 0xCA && payload[5] == 0xFE &&
         payload[6] == 0xBA && payload[7] == 0xBE) {
 
-        /* char *heap_buf = malloc(16); */
+        char *heap_buf = malloc(16);
         /* BUG 2: copies (length-8) bytes into a 16-byte heap buffer */
-        /* memcpy(heap_buf, payload + 8, length - 8); */
-        /* free(heap_buf); */
-        char *heap_buf = NULL;
-        /* BUG 2: null pointer dereference — always crashes once magic bytes are satisfied */
-        *heap_buf = payload[8];
+        memcpy(heap_buf, payload + 8, length - 8);
+        free(heap_buf);
     }
 }
 
@@ -114,9 +112,8 @@ static void handle_cmd3(const uint8_t *payload, uint16_t length)
 /* ------------------------------------------------------------------ */
 /* Bug 4: NULL POINTER DEREFERENCE                                     */
 /*                                                                     */
-/* What: lookup_value() returns a valid int* for most inputs, but     */
-/*       returns NULL when payload[0] == 0x5E. The caller dereferences*/
-/*       the result without a NULL check.                             */
+/* What: ptr is set to NULL when payload[0] == 0x5E, and is          */
+/*       dereferenced without a NULL check, causing SIGSEGV.          */
 /* How AFL finds it: must hit the exact byte value 0x5E (1 out of    */
 /*       256). AFL can find this but takes longer than a range check. */
 /* Difficulty: MEDIUM                                                  */
@@ -184,6 +181,8 @@ static void handle_cmd6(const uint8_t *payload, uint16_t length)
     /* BUG 6: double free when both bit 4 and bit 7 of payload[0] are set */
     if (payload[0] & 0x10) free(buf);
     if (payload[0] & 0x80) free(buf);
+
+    if (!(payload[0] & 0x10) && !(payload[0] & 0x80)) free(buf);
 }
 
 
@@ -222,19 +221,17 @@ static void handle_cmd7(const uint8_t *payload, uint16_t length)
 /*                                                                     */
 /* What: payload[3] is used as an index into a 4-element array with   */
 /*       no bounds check. Any index >= 4 reads out of bounds.         */
-/*       Reachable only when TWO conditions are both satisfied:        */
+/*       Reachable only when two conditions are both satisfied:        */
 /*         (1) (payload[0] & payload[1]) == 0x3C  (AND constraint)    */
-/*             requires specific bits set in both bytes simultaneously */
 /*         (2) payload[2] + 0x2E == 0x63          (arithmetic gate)   */
 /*             i.e. payload[2] must be exactly 0x35                   */
-/* Why AFL fails: condition (1) requires AFL to coordinate bits       */
-/*       across two independent bytes — AFL mutates bytes one at a    */
-/*       time and cannot satisfy the AND relationship. Even if it     */
-/*       stumbles on condition (1), it still needs payload[2]==0x35.  */
-/* Why SymCC succeeds: both constraints are standard SMT expressions. */
-/*       SymCC sets payload[0]=0xFF, solves payload[1]=0x3C for AND,  */
-/*       solves payload[2]=0x35 for the arithmetic gate, then sets    */
-/*       payload[3]=5 to trigger the OOB read. One pass.             */
+/* Why AFL fails: condition (1) requires specific bits set in BOTH    */
+/*       payload[0] and payload[1] simultaneously. AFL mutates bytes  */
+/*       independently and cannot coordinate the AND relationship.    */
+/* Why SymCC succeeds: SymCC models both constraints symbolically.    */
+/*       It sets payload[0]=0xFF, solves payload[1]=0x3C for the AND, */
+/*       sets payload[2]=0x35 (satisfies == 0x63), and sets           */
+/*       payload[3]=5 to trigger the OOB read.                        */
 /* Difficulty: VERY HIGH (requires SymCC)                             */
 /* ------------------------------------------------------------------ */
 static void handle_cmd8(const uint8_t *payload, uint16_t length)
@@ -256,19 +253,21 @@ static void handle_cmd8(const uint8_t *payload, uint16_t length)
 /* ------------------------------------------------------------------ */
 /* Bug 9: DOUBLE FREE (behind XOR state transition)                   */
 /*                                                                     */
-/* What: a buffer is freed twice via a three-step state machine.      */
-/*       Step 1: payload[0] == 'Z'         (enter active state)       */
+/* What: a buffer is allocated and immediately freed (step 1), then   */
+/*       freed a second time if two more constraints are satisfied,   */
+/*       causing a double free. Three conditions must all hold:       */
+/*       Step 1: payload[0] == 'Z'         (enter active state,      */
+/*               buf is allocated and freed here)                     */
 /*       Step 2: payload[1] ^ payload[0] == 0x1B  (XOR transition)   */
 /*               i.e. payload[1] must equal 'Z'^0x1B == 0x41 ('A')   */
 /*       Step 3: (payload[2] & payload[3]) == 0x57  (AND constraint)  */
-/*               both bytes must have all bits of 0x57 set            */
-/*               e.g. payload[2]=0xFF, payload[3]=0x57 → 0x57        */
+/*               e.g. payload[2]=0xFF, payload[3]=0x57                */
 /* Why AFL fails: Steps 2 and 3 require coordinated byte values.      */
 /*       AFL mutates bytes independently and cannot satisfy the XOR   */
 /*       relationship between payload[0] and payload[1], nor the      */
-/*       combined payload[2]/payload[3] condition.                    */
+/*       combined payload[2]/payload[3] AND condition.                */
 /* Why SymCC succeeds: solves payload[0]=='Z', then payload[1] via    */
-/*       XOR equation, then payload[3]==0x57 and payload[2] odd,      */
+/*       XOR equation, then solves payload[2] & payload[3] == 0x57,  */
 /*       reaching the double free in one pass.                        */
 /* Difficulty: VERY HIGH (requires SymCC)                             */
 /* ------------------------------------------------------------------ */
@@ -276,10 +275,9 @@ static void handle_cmd9(const uint8_t *payload, uint16_t length)
 {
     if (length < 4) return;
 
-    char *buf = malloc(32);
-
     /* Step 1: enter active state */
     if (payload[0] == 'Z') {
+        char *buf = malloc(32);
         free(buf);
         /* Step 2: XOR transition — payload[1] must be 'Z' ^ 0x1B = 'A' */
         if ((payload[1] ^ payload[0]) == 0x1B) {
