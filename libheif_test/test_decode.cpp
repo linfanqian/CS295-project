@@ -56,8 +56,8 @@ int main(int argc, char** argv) {
     if (opts) heif_decoding_options_free(opts);
 
     if (err.code == heif_error_Ok && img) {
-        int stride = 0;
-        const uint8_t* plane = heif_image_get_plane_readonly(
+        size_t stride = 0;
+        const uint8_t* plane = heif_image_get_plane_readonly2(
             img, heif_channel_interleaved, &stride);
         if (plane && stride > 0) {
             volatile uint8_t sink = plane[0];
