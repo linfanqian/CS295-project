@@ -32,4 +32,6 @@ SYMCC_REGULAR_LIBCXX=yes \
         -o "$SCRIPT_DIR/test_decode_symcc" \
         "$SRC"
 
+python3 make_seeds.py
+
 echo "Done."
