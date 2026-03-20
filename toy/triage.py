@@ -4,8 +4,9 @@ triage.py — Identify which of the 9 planted bugs a crash set found.
 Run after fuzzing to produce a bug-coverage table.
 
 Usage:
-    python3 triage.py findings_afl/default/crashes "AFL-only"
-    python3 triage.py findings_symcc/afl-primary/crashes findings_symcc/symcc/crashes "AFL+SymCC"
+    python3 triage.py output/afl-primary/crashes "AFL-only"
+    python3 triage.py output/afl-primary/hangs "AFL-only"
+    python3 triage.py output/afl-primary/crashes output/symcc/crashes "AFL+SymCC"
 """
 import sys, os, struct
 
