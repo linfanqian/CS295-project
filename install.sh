@@ -93,11 +93,7 @@ cmake -S ./libheif-1.21.2 -B ./libheif-symcc-build \
     -DBUILD_TESTING=OFF \
     -DWITH_TESTS=OFF \
     -DCMAKE_C_COMPILER="$CC" \
-    -DCMAKE_CXX_COMPILER="$CXX" \
-    -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-    -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-    -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+    -DCMAKE_CXX_COMPILER="$CXX"
 cmake --build ./libheif-symcc-build
 unset CC CXX SYMCC_REGULAR_LIBCXX
 
