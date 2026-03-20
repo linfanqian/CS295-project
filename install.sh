@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 echo "=============================="
 echo "[1/5] Downloading libheif"
 echo "=============================="
@@ -77,8 +79,8 @@ unset CC CXX AFL_USE_ASAN AFL_USE_UBSAN
 echo "=================================="
 echo "[5/5] Building libheif with SymCC"
 echo "=================================="
-export CC="$HOME/symcc/build/symcc"
-export CXX="$HOME/symcc/build/sym++"
+export CC="$SCRIPT_DIR/symcc/build/symcc"
+export CXX="$SCRIPT_DIR/symcc/build/sym++"
 export SYMCC_REGULAR_LIBCXX=yes
 rm -rf ./libheif-symcc-build
 cmake -S ./libheif-1.21.2 -B ./libheif-symcc-build \

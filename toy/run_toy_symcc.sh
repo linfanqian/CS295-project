@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTPUT="$SCRIPT_DIR/output"
 TARGET_SYMCC="$SCRIPT_DIR/toy_symcc"
-SYMCC_HELPER="$HOME/symcc/util/symcc_fuzzing_helper/target/release/symcc_fuzzing_helper"
+SYMCC_HELPER="$SCRIPT_DIR/../symcc/util/symcc_fuzzing_helper/target/release/symcc_fuzzing_helper"
 
 usage() {
     echo "Usage: $0"

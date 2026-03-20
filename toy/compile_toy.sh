@@ -1,8 +1,9 @@
 #!/bin/bash
 
-afl-clang-fast -fsanitize=address,undefined -g -O0 -o toy_afl toy.c
+AFL_LLVM_INSTRUMENT=CLASSIC \
+    afl-clang-fast -fsanitize=address,undefined -g -O0 -o toy_afl toy.c
 
-SYMCC="$HOME/symcc/build/symcc"
+SYMCC="../symcc/build/symcc"
 "$SYMCC" \
     -fsanitize=address,undefined \
     -fno-omit-frame-pointer \
