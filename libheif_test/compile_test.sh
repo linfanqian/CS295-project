@@ -11,7 +11,7 @@ SYMCC_BUILD="$SCRIPT_DIR/../libheif-symcc-build"
 
 INCLUDES="-I$HEIF_SRC/libheif/api"
 AFL_CXXFLAGS="-g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer"
-SYMCC_CXXFLAGS="-g -O0"
+SYMCC_CXXFLAGS="-g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer"
 
 echo "[1/2] Compiling test_decode with AFL++..."
 AFL_USE_ASAN=1 AFL_USE_UBSAN=1 \
